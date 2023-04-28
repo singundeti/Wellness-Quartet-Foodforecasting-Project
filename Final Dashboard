@@ -1,0 +1,370 @@
+---
+title:  "How Well Do You Know Changes in Food Price?"
+author: "Wellness Quartet (Won Moon Cho, Sindhuja Gundeti, Aliah Galanga, Amanda Aguzar)"
+date: "2023-03-07"
+output: html_document
+runtime: shiny
+---
+<style>
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+    background-color: #2d2d36;
+}
+body {
+    background-color:#d9d9ff;
+}
+</style>
+
+![Fresh food product in a grocery store](https://p0.piqsels.com/preview/350/716/16/bunch-of-vegetables.jpg){width="50%"}
+
+## Introduction
+
+The Wellness Quartet team has built this interactive dashboard using poorly helping users visualize the change in percentage of U.S CPI Historical Data. 
+
+This data was collected by U.S Bureau of Statistics from the years 1974 to 2021.
+
+To better understand this interface dashboard, we have categorized the departments of food into 5 levels: 
+
+Level 1: All food
+
+Level 2: Food away from home,Food at home
+
+Level 3: Meats, poultry, and fish, Eggs, Dairy products, Fats and oils, Fruits and vegetables, Sugar and sweets,Cereals and bakery products, Nonalcoholic beverages, Other foods
+
+Level 4: Meats, Poultry, Fish and seafood, Fresh fruits and vegetables, Processed fruits and vegetables
+
+Level 5: Beef and veal, Pork, Other meats, Fresh fruits, Fresh vegetables
+
+```{r setup, include=FALSE}
+ 
+library(tidyverse)
+library(forecast)
+library(readxl)
+library(shiny)
+library(plotly)
+library(tibble)
+library(ggplot2)
+library(dplyr)
+library(ggiraph)
+library(shinyWidgets)
+library(treemapify)
+library(devtools)
+ 
+pacman::p_load(tidyverse, forecast, readxl, shiny, plotly, tibble, ggplot, ggplot2, dplyr, ggiraph, treemap)
+```
+ 
+```{r load data, include=FALSE}
+
+CPIForecastData <- read_excel("CPIForecast.xlsx",
+                              skip = 1)
+CPIHistoricalData <- read_excel("historicalcpi.xlsx", 
+                                skip = 1)
+```
+
+```{r data cleanup, include = FALSE}
+CPIHistoricalWide <- CPIHistoricalData %>%
+  remove_missing() %>%
+  mutate(`Consumer Price Index item` = as.factor(`Consumer Price Index item`)) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  rename(cpiItem = `Consumer Price Index item`)
+
+CPIHistoricalWide$cpiItem
+
+CPIHistoricalWide <- CPIHistoricalWide %>% 
+  mutate(level = case_when((cpiItem %in% c('All food'))~ 1,
+                           (cpiItem %in% c('Food away from home','Food at home')) ~ 2,
+                           (cpiItem %in% c('Meats, poultry, and fish', 'Eggs', 'Dairy products', 'Fats and oils', 'Fruits and vegetables', 'Sugar and sweets','Cereals and bakery products', 'Nonalcoholic beverages', 'Other foods')) ~ 3,
+                           (cpiItem %in% c('Meats', 'Poultry', 'Fish and seafood', 'Fresh fruits and vegetables', 'Processed fruits and vegetables')) ~ 4,
+                           (cpiItem %in% c('Beef and veal', 'Pork', 'Other meats', 'Fresh fruits', 'Fresh vegetables')) ~ 5,
+                           TRUE ~ 0
+  ),
+  level = as.factor(level) 
+  )
+
+CPIHistoricalLong <- CPIHistoricalWide %>% 
+  pivot_longer(cols = !c(cpiItem, level)) %>%
+  rename(year = name, percentchange = value) %>% 
+  mutate(percentchange = round(percentchange*0.01, 3)) %>%
+  mutate('year' = as.Date(year, format = "%Y" ))
+```
+
+
+# 1. Successive years in historic records of the consumer price index for each category of food
+
+This interactive line graph shows the consumer price index in % change related to corresponding year. Each food category can be toggled on and off and can also be compared to the consumer price index of all foods as a whole.
+
+### Level 3 
+```{r CPIHistoricalLongInput, echo=FALSE}
+inputPanel(
+  selectizeInput("cpiItemselected3", label = "Food Categories:",
+              choices = unique(CPIHistoricalLong$cpiItem[CPIHistoricalLong$level==3]), selected = "Meats, poultry, and fish", multiple = TRUE)
+)
+inputPanel(
+  checkboxInput("cpiItemselectedAll", label = "Compare to All Foods", value = TRUE)
+)
+```
+
+```{r CPIHistoricalLongPlot3, echo=FALSE}
+renderPlotly({
+  
+  allfoods<- ifelse(input$cpiItemselectedAll,"All food",NA)
+  g<-CPIHistoricalLong %>% 
+    filter(cpiItem %in% c(input$cpiItemselected3,allfoods)) %>% 
+    ggplot(mapping = aes(x = year, y = percentchange, color = cpiItem))  + 
+    geom_line() +
+    labs(x = "year", y = ""
+    ) +
+    theme_minimal() + 
+    scale_y_continuous(label=scales::percent) +
+    scale_color_discrete(name="Food Category")
+  ggplotly(g) %>%
+  layout(title = list(text = paste0('<br>','Comparisons of Consumer Price Index',
+                                    '<br>',
+                                    '<sup>',
+                                     '% change per year','</sup>')))
+})
+```
+
+### Level 4
+
+```{r CPIHistoricalLong4, echo=FALSE}
+inputPanel(
+  selectizeInput("cpiItemselected4", label = "Food Categories:",
+              choices = unique(CPIHistoricalLong$cpiItem[CPIHistoricalLong$level==4]), selected = "Meats", multiple = TRUE)
+)
+inputPanel(
+  checkboxInput("cpiItemselectedAll", label = "Compare to All Foods", value = TRUE)
+)
+```
+
+```{r CPIHistoricalLongPlot4, echo=FALSE}
+renderPlotly({
+  
+  allfoods<- ifelse(input$cpiItemselectedAll,"All food",NA)
+  g<-CPIHistoricalLong %>% 
+    filter(cpiItem %in% c(input$cpiItemselected4,allfoods)) %>% 
+    ggplot(mapping = aes(x = year, y = percentchange, color = cpiItem))  + 
+    geom_line() +
+    labs(x = "year", y = ""
+    ) +
+    theme_minimal() + 
+    scale_y_continuous(label=scales::percent) +
+    scale_color_discrete(name="Food Category")
+  ggplotly(g) %>%
+  layout(title = list(text = paste0('<br>','Comparisons of Consumer Price Index',
+                                    '<br>',
+                                    '<sup>',
+                                     '% change per year','</sup>')))
+})
+```
+
+
+```{r CPIForecast data cleanup, include=FALSE}
+CPIForecastWide<- CPIForecastData %>%
+ remove_missing() %>%
+ mutate(`Consumer Price Index item` = as.factor(`Consumer Price Index item`)) %>%
+ mutate_if(is.character, as.numeric) %>%
+ rename(cpiItem = 'Consumer Price Index item')
+ 
+ 
+CPIForecastWide$cpiItem
+ 
+CPIForecastWide <- CPIForecastWide %>%
+ mutate(level = case_when((cpiItem %in% c('All food'))~ 1,
+                          (cpiItem %in% c('Food away from home','Food at home')) ~ 2,
+                          (cpiItem %in% c('Meats, poultry, and fish', 'Eggs', 'Dairy products', 'Fats and oils', 'Fruits and vegetables', 'Sugar and sweets','Cereals and bakery products', 'Nonalcoholic beverages', 'Other foods')) ~ 3,
+                          (cpiItem %in% c('Meats', 'Poultry', 'Fish and seafood', 'Fresh fruits and vegetables', 'Processed fruits and vegetables')) ~ 4,
+                          (cpiItem %in% c('Beef and veal', 'Pork', 'Other meats', 'Fresh fruits', 'Fresh vegetables')) ~ 5,
+                          TRUE ~ 0
+ ),
+ level = as.factor(level)
+ )
+CPIForecastLong <- CPIForecastWide %>%
+ pivot_longer(cols = !c(cpiItem, level)) %>%
+ rename(year = name, percentchange = value) %>%
+ mutate(percentchange = round(percentchange*0.01, 3))
+```
+ 
+# 2. Changes in Consumer Price Indexes From 2020 to 2023
+ 
+This data set shows the changes in Consumer Price Indexes (CPI) from 2020 to 2023 while also forecasting CPI changes in the upcoming year.
+ 
+```{r CPIForecastLong, include=FALSE}
+ 
+CPIForecastShort <- CPIForecastLong %>%
+ filter(year %in% c('Annual 2020', 'Annual 2021', 'Annual 2022', 'Prediction Interval 20232')) %>%
+ mutate(year = ifelse(year == 'Annual 2020', '2020',
+                      ifelse(year == 'Annual 2021', '2021',
+                             ifelse(year == 'Annual 2022', '2022',
+                                    ifelse(year == 'Prediction Interval 20232', '2023 (Predicted)',
+                                           year)))))
+```
+ 
+```{r CPIForecastShort plot, echo=FALSE}
+ 
+p <- CPIForecastShort %>%
+    filter(level == 3) %>%
+    ggplot(aes(x= year, y= percentchange,
+                        color = cpiItem,
+                        tooltip = paste("Year: ", year, "<br>",
+                                          "Percent Change in CPI: ", percentchange)
+
+           ))
+p <- p + geom_point() + geom_smooth(method = "lm")
+p <- p + labs(x= "", y = "",
+             title = "Percent Change in CPI Throughout the Years & Prediction for 2023")
+
+ 
+p <- ggplotly(p, tooltip = c("cpiItem"), width = 800, height = 600)
+p
+```
+ 
+```{r building heatmap,include = FALSE}
+ library(plotly)
+ library(reshape2)
+ q <- ggplot(CPIHistoricalLong, aes(x= year, 
+                                    y = cpiItem)) +
+   geom_raster(aes(fill=percentchange)) +
+   labs(title = "Price Fluctuation by Category and Year",
+        x = "Year",
+        y = "Item Category",
+        fill = "# of price change") 
+ ggplotly(q)
+```
+
+```{r heatmap setup,include = FALSE}
+pacman::p_load(plotly, reshape2)
+```
+
+
+# 3. Which Food Category Fluctuated the Most in Pricing?
+
+This interactive heat map is created to identify which category of food was fluctuating the most in pricing. Users may select the time range and categories based on their interests by zooming in. 
+
+```{r rebuilding heatmap, echo = FALSE}
+
+library(plotly)
+library(reshape2)
+library(dplyr)
+library("colorspace")
+library(shiny)
+
+q<-CPIHistoricalLong %>%
+  filter(level == 3) %>%
+  ggplot(aes(x = year, y = cpiItem, 
+             
+             text = paste(
+                  "Item Category:", cpiItem,
+                  "<br>Year:", year,
+                  "<br>Percent of price change:", 100*percentchange),
+             textposition = "auto")) +
+  geom_tile(aes(fill= percentchange)) +
+  labs(title = "Price Fluctuation by Category from 1974 to 2021",
+       x = "",
+       y = "",
+       fill = "Percent of price change") +
+  scale_fill_gradient2(low="blue", mid= "white", high="red", breaks = c(-0.2,0,0.2,0.4), labels = c(-20,0,20,40))
+
+
+#y  <-c('Meats, poultry, and fish', 'Eggs', 'Dairy products', 'Fats and oils', 'Fruits and vegetables', 'Sugar and sweets','Cereals and bakery products', 'Nonalcoholic beverages', 'Other foods')
+
+ggplotly(q, tooltip = "text", width = 800, height = 600)
+
+```
+
+# 4.Treemap Visualizing Price Disparities in Level 3 Categories 
+This treemap is shows the density of percentage changes from its other categories. 
+``` {r treemap3, echo=FALSE}
+# Define the server
+server <- function(input, output) {
+  output$treemap <- renderPlot({
+    CPIHistoricalLong %>%
+      filter(year == input$year, level == 3) %>%
+      ggplot(aes(area = percentchange, fill = cpiItem, label = percentchange)) +
+        geom_treemap(stat = "identity", color = "black") +
+        labs(title = paste("CPI Changes for Level 3 Categories in", input$year)) +
+        theme(legend.key.size = unit(1.2, "cm")) +
+        geom_treemap_text(colour = "WHITE", place = "centre", size = 16) +
+        scale_fill_brewer(palette = "Set3") 
+  })
+}
+
+
+# Define the UI
+ui <- fluidPage(
+  titlePanel("Consumer Price Index (CPI)"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("year", "Select a year:", choices = unique(CPIHistoricalLong$year))
+    ),
+    mainPanel(
+      plotOutput("treemap")
+    )
+  )
+)
+
+# Run the app
+shinyApp(ui, server)
+
+
+```
+
+# 5. Barchart Visualizing Price Disparities in Level 3 Categories 
+This barchart is a visualization of the percent changes in level 3 categories. 
+``` {r barplot, echo=FALSE}
+library(shiny)
+library(ggplot2)
+
+# Define UI for Shiny app
+ui <- fluidPage(
+  
+  # Application title
+  titlePanel("CPI Historical Data"),
+  
+  # Sidebar with dropdown menu for selecting year
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("year", "Select a year:",
+                  choices = unique(CPIHistoricalLong$year),
+                  selected = "2021")
+    ),
+    
+    # Main panel with bar chart
+    mainPanel(
+      plotOutput("barPlot")
+    )
+  )
+)
+
+# Define server function
+server <- function(input, output) {
+  
+  # Create reactive dataset based on selected year
+  data <- reactive({
+    CPIHistoricalLong %>% 
+      filter(year == input$year & level == 3)
+  })
+  
+  # Create bar chart based on reactive dataset
+  output$barPlot <- renderPlot({
+    ggplot(data(), aes(x = percentchange, y = fct_reorder(cpiItem, percentchange), fill = cpiItem)) +
+      geom_bar(stat = "identity", color = "black") +
+      coord_trans(y = "reverse") +
+      scale_fill_brewer(palette = "Set3") +
+      labs(title = paste("Percent Change in CPI Items for", input$year),
+           x = "Percent Change",
+           y = "CPI Item") +
+      theme(legend.key.size = unit(1.2, "cm"))
+    
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui = ui, server = server)
+
+```
+
+
+
+
+
+
